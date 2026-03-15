@@ -193,40 +193,68 @@ def apply_sdctft(
     n: int,
     delta: float = 0.7,
     alpha: float = 16.0,
-    target_suffixes: tuple[str, ...] = (
+    target_suffixes: tuple = (
         "to_q", "to_k", "to_v", "to_out.0",
         "ff.net.0.proj", "ff.net.2",
         "proj_in", "proj_out",
     ),
     min_size: int = 64,
-) -> list[str]:
+) -> list:
     """Wrap eligible linear layers in a model with sDCTFT parametrizations.
 
-    Args:
-        model:           PyTorch model (UNet, DiT, …)
-        n:               Number of trainable DCT coefficients per layer.
-        delta:           Energy fraction (0–1).
-        alpha:           Scaling factor.
-        target_suffixes: Layer name suffixes to wrap (attention + FF projections).
-        min_size:        Skip layers whose weight has fewer than min_size elements.
+    Accepts nn.Linear AND any module whose .weight is a 2D tensor (covers
+    ComfyUI's custom Linear subclasses like comfy.ops.disable_weight_init.Linear).
 
-    Returns:
-        List of wrapped layer names.
+    Falls back to targeting ALL eligible layers if suffix matching finds nothing.
     """
+    import traceback as _tb
+
     # Freeze all parameters first
     for param in model.parameters():
         param.requires_grad_(False)
 
-    wrapped = []
+    # ------------------------------------------------------------------
+    # Collect all modules that look like linear layers (2D weight tensor)
+    # ------------------------------------------------------------------
+    candidates = []
     for name, module in model.named_modules():
-        if not isinstance(module, nn.Linear):
+        w = getattr(module, "weight", None)
+        if w is None or not isinstance(w, torch.Tensor):
             continue
-        if module.weight.numel() < min_size:
+        if w.ndim != 2:          # skip conv (4D) and norms (1D)
             continue
-        # Check if name ends with any of the target suffixes
-        if not any(name.endswith(sfx) for sfx in target_suffixes):
+        if w.numel() < min_size:
             continue
+        candidates.append((name, module))
 
+    print(f"[sDCTFT] Found {len(candidates)} eligible linear-like layers.")
+    if candidates:
+        sample = candidates[:8]
+        print("[sDCTFT] Sample layer names:")
+        for nm, mod in sample:
+            print(f"  {nm}  shape={tuple(mod.weight.shape)}")
+
+    # ------------------------------------------------------------------
+    # Suffix matching
+    # ------------------------------------------------------------------
+    matched = [(nm, mod) for nm, mod in candidates
+               if any(nm.endswith(sfx) for sfx in target_suffixes)]
+
+    if not matched:
+        print(
+            f"[sDCTFT] WARNING: No layers matched target_suffixes {target_suffixes}.\n"
+            "[sDCTFT] Falling back to ALL eligible linear layers."
+        )
+        matched = candidates
+
+    print(f"[sDCTFT] Wrapping {len(matched)} layers …")
+
+    # ------------------------------------------------------------------
+    # Register parametrizations
+    # ------------------------------------------------------------------
+    wrapped = []
+    last_tb = ""
+    for name, module in matched:
         try:
             param = sDCTFTParametrization(
                 module.weight, n=n, delta=delta, alpha=alpha
@@ -234,7 +262,11 @@ def apply_sdctft(
             P.register_parametrization(module, "weight", param)
             wrapped.append(name)
         except Exception as exc:
+            last_tb = _tb.format_exc()
             print(f"[sDCTFT] Skipping {name}: {exc}")
+
+    if not wrapped and last_tb:
+        print("[sDCTFT] All wrapping attempts failed. Last traceback:\n", last_tb)
 
     return wrapped
 
