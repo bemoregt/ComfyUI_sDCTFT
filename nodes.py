@@ -396,8 +396,8 @@ class sDCTFT_Train:
         config: dict,
     ) -> tuple:
         import comfy.model_management as mm
-        from sdctft.algorithm import apply_sdctft
-        from sdctft.trainer import train_sdctft
+        from .sdctft.algorithm import apply_sdctft
+        from .sdctft.trainer import train_sdctft
 
         # ------------------------------------------------------------------
         # 1. Clone model so we don't modify the cached version
@@ -474,7 +474,7 @@ class sDCTFT_Train:
         # ------------------------------------------------------------------
         # 5. Bake in the trained weights (remove parametrizations)
         # ------------------------------------------------------------------
-        from sdctft.algorithm import remove_sdctft
+        from .sdctft.algorithm import remove_sdctft
         import torch.nn.utils.parametrize as P
 
         # Before removing parametrizations, materialize the effective weights
