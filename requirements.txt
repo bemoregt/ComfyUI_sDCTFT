@@ -1,0 +1,12 @@
+# sDCTFT ComfyUI custom nodes requirements
+# Install with:  pip install -r requirements.txt
+
+# Core scientific stack (usually already present in ComfyUI environment)
+numpy>=1.24
+scipy>=1.10          # used only for off-line DCT validation, not in forward pass
+Pillow>=9.0
+
+# Optional: faster safetensors saving (highly recommended)
+safetensors>=0.4.0
+
+# torch / torchvision are provided by ComfyUI's environment
