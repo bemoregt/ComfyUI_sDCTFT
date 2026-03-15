@@ -4,6 +4,8 @@ Fine-tune diffusion models inside ComfyUI using the **sDCTFT** (Selective Discre
 
 sDCTFT achieves competitive fine-tuning quality with **up to 99.97 % fewer trainable parameters than LoRA** by working directly in the frequency domain of each weight matrix.
 
+![ComfyUI-sDCTFT workflow screenshot](ScrShot%207.png)
+
 ---
 
 ## How it works
